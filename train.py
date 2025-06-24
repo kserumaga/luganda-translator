@@ -29,6 +29,60 @@ def load_data(lug_path, eng_path):
     # Convert to a Hugging Face Dataset object
     return Dataset.from_dict(data)
 
+def load_data_from_excel(luganda_excel_path, english_excel_path=None):
+    """Load translation data directly from Excel files."""
+    try:
+        # Import pandas here to avoid requiring it for text-based loading
+        import pandas as pd
+        
+        print(f"Loading data from Excel files...")
+        # Check if it's a single file or two files
+        if english_excel_path is None:
+            # Single Excel file with both languages
+            df = pd.read_excel(luganda_excel_path)
+            # Assuming columns are named "Luganda" and "English"
+            # Modify these column names if your Excel structure is different
+            if "Luganda" in df.columns and "English" in df.columns:
+                lug_lines = df["Luganda"].astype(str).tolist()
+                eng_lines = df["English"].astype(str).tolist()
+            else:
+                # Use column C (index 2) as specified
+                print("Using column C (index 2) for data extraction")
+                if len(df.columns) > 2:
+                    lug_lines = df.iloc[:, 2].astype(str).tolist()
+                    # Assuming English is in the next column
+                    eng_lines = df.iloc[:, 3].astype(str).tolist() if len(df.columns) > 3 else []
+                else:
+                    raise ValueError("Excel file does not have enough columns (need column C)")
+        else:
+            # Two separate Excel files
+            df_lug = pd.read_excel(luganda_excel_path)
+            df_eng = pd.read_excel(english_excel_path)
+            
+            # Use column C (index 2) for both files as specified
+            if len(df_lug.columns) <= 2:
+                raise ValueError("Luganda Excel file does not have column C (index 2)")
+            if len(df_eng.columns) <= 2:
+                raise ValueError("English Excel file does not have column C (index 2)")
+                
+            lug_lines = df_lug.iloc[:, 2].astype(str).tolist()
+            eng_lines = df_eng.iloc[:, 2].astype(str).tolist()
+        
+        print(f"Loaded {len(lug_lines)} Luganda lines and {len(eng_lines)} English lines")
+        
+        # Filter out nan values and empty strings
+        data = {"translation": []}
+        for i in range(min(len(lug_lines), len(eng_lines))):
+            lg, en = lug_lines[i].strip(), eng_lines[i].strip()
+            if lg != "nan" and en != "nan" and lg and en:
+                data["translation"].append({"en": en, "lg": lg})
+        
+        print(f"Created dataset with {len(data['translation'])} valid translation pairs")
+        return Dataset.from_dict(data)
+    except Exception as e:
+        print(f"Error loading Excel files: {e}")
+        raise
+
 def main(args):
     # --- 1. Load Model and Tokenizer ---
     # The model name for NLLB-200, 600M parameter version.

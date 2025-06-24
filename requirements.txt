@@ -6,3 +6,5 @@ sentencepiece>=0.1.99
 protobuf>=3.20.0
 sacrebleu>=2.3.1
 evaluate>=0.4.0
+pandas>=1.5.0
+openpyxl>=3.1.0
