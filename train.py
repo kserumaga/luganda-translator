@@ -101,7 +101,13 @@ def main(args):
     )
 
     print(f"Loading model: {MODEL_NAME}")
-    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+    # Add memory optimization parameters
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        MODEL_NAME,
+        # Optimize memory usage
+        low_cpu_mem_usage=True,
+        device_map="auto" if torch.cuda.is_available() else None,
+    )
 
     # --- 2. Load and Prepare the Dataset ---
     print("Loading and preparing data...")
@@ -162,19 +168,31 @@ def main(args):
     # This is more efficient than padding all sentences to the global max length.
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
 
+    # Use a smaller batch size and add gradient accumulation steps to save memory
+    # A smaller per_device_train_batch_size (e.g., 8 or 4) combined with gradient_accumulation_steps
+    # will simulate the effect of a larger batch size while using less memory
+    actual_batch_size = args.batch_size
+    per_device_batch = 4  # Reduced batch size per device
+    gradient_accumulation = actual_batch_size // per_device_batch
+
     # These are the training arguments. They control everything about the training process.
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output_dir,          # Directory to save the model
         eval_strategy="epoch",               # Changed from evaluation_strategy to eval_strategy
         learning_rate=args.learning_rate,    # The learning rate for the optimizer
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
+        per_device_train_batch_size=per_device_batch,
+        per_device_eval_batch_size=per_device_batch,
+        gradient_accumulation_steps=gradient_accumulation,  # Accumulate gradients to simulate larger batch
         weight_decay=0.01,
         save_total_limit=3,                  # Only keep the last 3 checkpoints
         num_train_epochs=args.epochs,
         predict_with_generate=True,          # This is required for seq2seq models
         fp16=True,                           # Use 16-bit precision for faster training on GPUs
         logging_steps=100,                   # Log progress every 100 steps
+        report_to=["none"],                  # Disable wandb reporting
+        # Memory optimization options
+        deepspeed=None,                      # Enable if you set up DeepSpeed
+        optim="adamw_torch",                 # More memory efficient optimizer
     )
 
     # The Seq2SeqTrainer is the main class from Hugging Face that orchestrates training.
@@ -183,12 +201,11 @@ def main(args):
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
         data_collator=data_collator,
     )
 
     # --- 4. Start Training ---
-    print("Starting training...")
+    print(f"Starting training with effective batch size {actual_batch_size} (device batch: {per_device_batch}, gradient accumulation: {gradient_accumulation})")
     trainer.train()
 
     # --- 5. Save the Final Model ---
