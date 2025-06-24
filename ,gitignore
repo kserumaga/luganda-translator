@@ -1,0 +1,16 @@
+# Python virtual environment
+venv/
+__pycache__/
+
+# Data files (we'll handle these with Google Drive)
+*.txt
+*.tsv
+data/
+
+# Model files (these are huge)
+models/
+*.pt
+*.bin
+
+# Colab-specific files
+.ipynb_checkpoints/
