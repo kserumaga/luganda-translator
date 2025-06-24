@@ -1,5 +1,4 @@
 # train.py
-
 import argparse
 import torch
 from datasets import Dataset
@@ -47,18 +46,27 @@ def load_data_from_excel(luganda_excel_path, english_excel_path=None):
                 lug_lines = df["Luganda"].astype(str).tolist()
                 eng_lines = df["English"].astype(str).tolist()
             else:
-                # If column names are different, try the first two columns
-                print("Warning: Standard column names not found, using first two columns")
-                lug_lines = df.iloc[:, 0].astype(str).tolist()
-                eng_lines = df.iloc[:, 1].astype(str).tolist()
+                # Use column C (index 2) as specified
+                print("Using column C (index 2) for data extraction")
+                if len(df.columns) > 2:
+                    lug_lines = df.iloc[:, 2].astype(str).tolist()
+                    # Assuming English is in the next column
+                    eng_lines = df.iloc[:, 3].astype(str).tolist() if len(df.columns) > 3 else []
+                else:
+                    raise ValueError("Excel file does not have enough columns (need column C)")
         else:
             # Two separate Excel files
             df_lug = pd.read_excel(luganda_excel_path)
             df_eng = pd.read_excel(english_excel_path)
             
-            # Assuming the text is in the first column of each file
-            lug_lines = df_lug.iloc[:, 0].astype(str).tolist()
-            eng_lines = df_eng.iloc[:, 0].astype(str).tolist()
+            # Use column C (index 2) for both files as specified
+            if len(df_lug.columns) <= 2:
+                raise ValueError("Luganda Excel file does not have column C (index 2)")
+            if len(df_eng.columns) <= 2:
+                raise ValueError("English Excel file does not have column C (index 2)")
+                
+            lug_lines = df_lug.iloc[:, 2].astype(str).tolist()
+            eng_lines = df_eng.iloc[:, 2].astype(str).tolist()
         
         print(f"Loaded {len(lug_lines)} Luganda lines and {len(eng_lines)} English lines")
         
@@ -157,7 +165,7 @@ def main(args):
     # These are the training arguments. They control everything about the training process.
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output_dir,          # Directory to save the model
-        evaluation_strategy="epoch",         # Evaluate at the end of each epoch
+        eval_strategy="epoch",               # Changed from evaluation_strategy to eval_strategy
         learning_rate=args.learning_rate,    # The learning rate for the optimizer
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
