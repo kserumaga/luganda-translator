@@ -10,6 +10,7 @@ from transformers import (
     Seq2SeqTrainingArguments,
     Seq2SeqTrainer,
 )
+import os
 
 def load_data(lug_path, eng_path):
     """Loads parallel text files into a Hugging Face Dataset."""
@@ -46,27 +47,18 @@ def load_data_from_excel(luganda_excel_path, english_excel_path=None):
                 lug_lines = df["Luganda"].astype(str).tolist()
                 eng_lines = df["English"].astype(str).tolist()
             else:
-                # Use column C (index 2) as specified
-                print("Using column C (index 2) for data extraction")
-                if len(df.columns) > 2:
-                    lug_lines = df.iloc[:, 2].astype(str).tolist()
-                    # Assuming English is in the next column
-                    eng_lines = df.iloc[:, 3].astype(str).tolist() if len(df.columns) > 3 else []
-                else:
-                    raise ValueError("Excel file does not have enough columns (need column C)")
+                # If column names are different, try the first two columns
+                print("Warning: Standard column names not found, using first two columns")
+                lug_lines = df.iloc[:, 0].astype(str).tolist()
+                eng_lines = df.iloc[:, 1].astype(str).tolist()
         else:
             # Two separate Excel files
             df_lug = pd.read_excel(luganda_excel_path)
             df_eng = pd.read_excel(english_excel_path)
             
-            # Use column C (index 2) for both files as specified
-            if len(df_lug.columns) <= 2:
-                raise ValueError("Luganda Excel file does not have column C (index 2)")
-            if len(df_eng.columns) <= 2:
-                raise ValueError("English Excel file does not have column C (index 2)")
-                
-            lug_lines = df_lug.iloc[:, 2].astype(str).tolist()
-            eng_lines = df_eng.iloc[:, 2].astype(str).tolist()
+            # Assuming the text is in the first column of each file
+            lug_lines = df_lug.iloc[:, 0].astype(str).tolist()
+            eng_lines = df_eng.iloc[:, 0].astype(str).tolist()
         
         print(f"Loaded {len(lug_lines)} Luganda lines and {len(eng_lines)} English lines")
         
@@ -105,7 +97,25 @@ def main(args):
 
     # --- 2. Load and Prepare the Dataset ---
     print("Loading and preparing data...")
-    raw_dataset = load_data(args.luganda_file, args.english_file)
+    
+    # Determine if we're using Excel or text files
+    if args.luganda_excel:
+        # Excel loading path
+        try:
+            raw_dataset = load_data_from_excel(
+                args.luganda_excel, 
+                args.english_excel
+            )
+        except Exception as e:
+            print(f"Failed to load Excel data: {e}")
+            return
+    else:
+        # Original text file loading path
+        try:
+            raw_dataset = load_data(args.luganda_file, args.english_file)
+        except Exception as e:
+            print(f"Failed to load text data: {e}")
+            return
     
     # We need a function to tokenize the text.
     # This will be applied to every example in our dataset.
@@ -182,15 +192,27 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fine-tune an NLLB model for Luganda-English translation.")
     
-    # Arguments for file paths
-    parser.add_argument("--luganda_file", type=str, required=True, help="Path to the Luganda text file.")
-    parser.add_argument("--english_file", type=str, required=True, help="Path to the English text file.")
-    parser.add_argument("--output_dir", type=str, required=True, help="Directory to save the fine-tuned model.")
+    # Create a group for file inputs to make them mutually exclusive
+    file_group = parser.add_mutually_exclusive_group(required=True)
     
-    # Arguments for training hyperparameters
+    # Text file arguments
+    file_group.add_argument("--luganda_file", type=str, help="Path to the Luganda text file.")
+    parser.add_argument("--english_file", type=str, help="Path to the English text file.")
+    
+    # Excel file arguments
+    file_group.add_argument("--luganda_excel", type=str, help="Path to Excel file with Luganda text (first column).")
+    parser.add_argument("--english_excel", type=str, help="Path to Excel file with English text (first column). Optional if both languages are in the luganda_excel file.")
+    
+    # Common arguments
+    parser.add_argument("--output_dir", type=str, required=True, help="Directory to save the fine-tuned model.")
     parser.add_argument("--learning_rate", type=float, default=2e-5, help="Learning rate for training.")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training and evaluation.")
     parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs.")
 
     args = parser.parse_args()
+    
+    # Validate arguments
+    if args.luganda_file and not args.english_file:
+        parser.error("--english_file is required when using --luganda_file")
+    
     main(args)
