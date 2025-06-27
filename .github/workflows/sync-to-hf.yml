@@ -24,6 +24,13 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           echo "Setting up Hugging Face credentials"
-          git remote add hf https://kserumaga:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/kserumaga/luganda-trainer
+          
+          # Use the token explicitly with the git protocol
+          git remote add hf https://kserumaga:$HF_TOKEN@huggingface.co/spaces/kserumaga/luganda-trainer
+          
+          # Alternatively, use the newer credential helper approach
+          git config --global credential.helper store
+          echo "https://kserumaga:$HF_TOKEN@huggingface.co" > ~/.git-credentials
+          
           echo "Pushing to Hugging Face Space"
           git push hf main
