@@ -13,20 +13,27 @@ jobs:
         uses: actions/checkout@v3
         
       - name: Install Hugging Face CLI
-        run: pip install huggingface_hub
-
+        run: pip install --upgrade huggingface_hub
+      
       - name: Login to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          echo $HF_TOKEN | huggingface-cli login --token-stdin
+          # Use the correct login syntax - it changed from huggingface-cli to huggingface-cli login
+          echo $HF_TOKEN | huggingface-cli login
       
       - name: Sync repository to Hugging Face Space
         run: |
           # Create a temporary directory for synchronization
           mkdir -p /tmp/hf-sync
-          cp -r * /tmp/hf-sync/ 2>/dev/null || true
-          cp -r .github /tmp/hf-sync/ 2>/dev/null || true
           
-          # Push files to HF Space using the CLI
-          huggingface-cli upload kserumaga/luganda-trainer /tmp/hf-sync/* --repo-type=space
+          # Copy all files (including hidden ones)
+          cp -r . /tmp/hf-sync/
+          
+          # Debug: List what we're about to upload
+          echo "Files to be uploaded:"
+          ls -la /tmp/hf-sync/
+          
+          # Push files to HF Space using the newer API
+          # The command has changed from huggingface-cli upload to huggingface-cli upload-folder
+          huggingface-cli upload-folder --repo-id=kserumaga/luganda-trainer --repo-type=space /tmp/hf-sync/
