@@ -1,10 +1,12 @@
 torch>=2.0.0
-transformers>=4.30.0
-datasets>=2.12.0
+transformers>=4.28.0
+datasets>=2.10.0
 accelerate>=0.20.0
-sentencepiece>=0.1.99
+sentencepiece>=0.1.97
 protobuf>=3.20.0
 sacrebleu>=2.3.1
 evaluate>=0.4.0
 pandas>=1.5.0
 openpyxl>=3.1.0
+huggingface_hub>=0.14.0
+gradio>=3.32.0
