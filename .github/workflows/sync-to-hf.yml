@@ -11,37 +11,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      
-      - name: Configure Git
-        run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-      
-      - name: Push to Hugging Face
+        
+      - name: Install Hugging Face CLI
+        run: pip install huggingface_hub
+
+      - name: Login to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          echo "Setting up Hugging Face credentials"
-          echo "https://kserumaga:$HF_TOKEN@huggingface.co" > ~/.git-credentials
-          git config --global credential.helper store
+          echo $HF_TOKEN | huggingface-cli login --token-stdin
+      
+      - name: Sync repository to Hugging Face Space
+        run: |
+          # Create a temporary directory for synchronization
+          mkdir -p /tmp/hf-sync
+          cp -r * /tmp/hf-sync/ 2>/dev/null || true
+          cp -r .github /tmp/hf-sync/ 2>/dev/null || true
           
-          echo "Cloning Hugging Face Space repository"
-          git clone https://huggingface.co/spaces/kserumaga/luganda-trainer
-          
-          echo "Copying files to Hugging Face repository"
-          cd luganda-trainer
-          # Clear existing files (except .git directory)
-          find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} \;
-          
-          # Copy all files from the GitHub repository
-          cd ..
-          cp -r * luganda-trainer/ 2>/dev/null || true
-          cp -r .github luganda-trainer/ 2>/dev/null || true
-          
-          # Commit and push changes
-          cd luganda-trainer
-          git add .
-          git commit -m "Sync with GitHub repository" || echo "No changes to commit"
-          git push
+          # Push files to HF Space using the CLI
+          huggingface-cli upload kserumaga/luganda-trainer /tmp/hf-sync/* --repo-type=space
