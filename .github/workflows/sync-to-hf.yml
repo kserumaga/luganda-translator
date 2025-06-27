@@ -12,6 +12,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+        
       - name: Install Hugging Face CLI
         run: pip install --upgrade huggingface_hub
       
@@ -19,21 +24,48 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # Use the correct login syntax - it changed from huggingface-cli to huggingface-cli login
-          echo $HF_TOKEN | huggingface-cli login
+          # Store token in a file for the CLI
+          mkdir -p ~/.huggingface
+          echo $HF_TOKEN > ~/.huggingface/token
       
       - name: Sync repository to Hugging Face Space
         run: |
-          # Create a temporary directory for synchronization
-          mkdir -p /tmp/hf-sync
+          # Use the Python API directly instead of CLI commands
+          python -c "
+          from huggingface_hub import HfApi, create_repo
+          import os, glob, shutil
           
-          # Copy all files (including hidden ones)
-          cp -r . /tmp/hf-sync/
+          # Login to Hugging Face
+          api = HfApi(token=os.environ.get('HF_TOKEN'))
+          print('Authenticated with Hugging Face')
           
-          # Debug: List what we're about to upload
-          echo "Files to be uploaded:"
-          ls -la /tmp/hf-sync/
+          # Get all files in the current directory
+          files = []
+          for root, dirs, filenames in os.walk('.'):
+              for filename in filenames:
+                  file_path = os.path.join(root, filename)
+                  # Skip git files and workflow files
+                  if '.git/' not in file_path and '.github/workflows' not in file_path:
+                      files.append(file_path)
           
-          # Push files to HF Space using the newer API
-          # The command has changed from huggingface-cli upload to huggingface-cli upload-folder
-          huggingface-cli upload-folder --repo-id=kserumaga/luganda-trainer --repo-type=space /tmp/hf-sync/
+          print(f'Found {len(files)} files to upload')
+          
+          # Upload each file
+          for file_path in files:
+              path_in_repo = file_path[2:] if file_path.startswith('./') else file_path
+              print(f'Uploading {file_path} as {path_in_repo}')
+              try:
+                  api.upload_file(
+                      path_or_fileobj=file_path,
+                      path_in_repo=path_in_repo,
+                      repo_id='kserumaga/luganda-trainer',
+                      repo_type='space'
+                  )
+                  print(f'Successfully uploaded {path_in_repo}')
+              except Exception as e:
+                  print(f'Error uploading {file_path}: {str(e)}')
+          
+          print('Sync completed')
+          "
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
